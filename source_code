@@ -1,0 +1,123 @@
+#include <DHT.h>
+#include <DHT_U.h>
+
+#include <Adafruit_Sensor.h>
+
+#define BLYNK_PRINT Serial
+
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <BlynkSimpleEsp32.h>
+
+DHT dht(32,DHT11);
+
+// Untuk menyambungkan blynkapps dengan hardware kita membutuhkan
+// 3 hal yaitu : otentikasi code, ssid, password
+// kode otentikasi didapat dari blynkapps
+char auth[] = "pZJrFxm2AJoBNgl1Qxvl15Edb-5LfZXo";
+
+// SSID sebagai nama WiFi nya dan pass sebagai password
+char ssid[] = "ETHELEVOELLEN";
+char pass[] = "evoellen";
+
+// Variabel yang berisi value pin di board
+const int ledPin[] = {4,2};//4 buat temperatur 2 buat lux
+const int ldr = 33;
+
+//Buat nyimpen Button state yang berisi 0 atau 1 
+int statState;
+
+//Variable buat nyimpen value temperatur dan lux yang ada di slider
+float valueT;
+float valueL;
+
+WidgetLED led1(V7),led2(V6);
+
+//Buat mengetahui value Temperature yang diterapkan di slider
+BLYNK_WRITE(V5){
+  valueT = param.asFloat();
+  
+}
+
+//Buat mengetahui value Lux yang diterapkan di slider
+BLYNK_WRITE(V4){
+  valueL = ((param.asFloat()*0.0009768) + 10);
+  
+}
+
+//Buat mengetahui value dari button state 
+BLYNK_WRITE(V8){
+  statState = param.asInt();
+}
+
+
+// Fungsi untuk mencetak value temperature dari hardware
+void temperature(){
+  float tempe = dht.readTemperature();
+  if(isnan(tempe)){
+    Serial.println("Sensor gak kebaca");
+    return;
+  }
+  Serial.print("Nilai Treshold Temperature: ");
+  Serial.println(valueT);
+  Serial.print("Temperature : ");
+  Serial.println(tempe);
+  Blynk.virtualWrite(V3,tempe);
+ 
+  if(tempe > valueT){
+    led1.on();
+    Blynk.setProperty(V7,"color", "#CD5C5C");//Buat ngubah warna led yang ada du blynk jadi warna merah
+    digitalWrite(ledPin[0], HIGH);
+  }else{
+    led1.on();
+    Blynk.setProperty(V7,"color","#1ABC9C");//Buat ngubah warna led yang ada du blynk jadi warna hijau
+    digitalWrite(ledPin[0], LOW);
+  }
+}
+
+void lux(){
+  float luxI = ((analogRead(ldr) * 0.0009768) + 10);
+  Serial.print("Nilai Treshold Lux: ");
+  Serial.println(valueL);
+  Serial.print("Lux : ");
+  Serial.println(luxI);
+  Blynk.virtualWrite(V2,luxI);
+  
+  if(luxI > valueL){
+    led2.on();
+    Blynk.setProperty(V6,"color", "#CD5C5C");//Buat ngubah warna led yang ada du blynk jadi warna merah
+    digitalWrite(ledPin[1], HIGH);
+  }else{
+    led2.on();
+    Blynk.setProperty(V6,"color","#1ABC9C");//Buat ngubah warna led yang ada du blynk jadi warna hijau
+    digitalWrite(ledPin[1], LOW);
+  }
+}
+
+void setup()
+{
+  // Debug console
+  Serial.begin(9600);
+  //Initiate Output LED
+  for(int i = 0;i<2;i++ )pinMode(ledPin[i],OUTPUT);
+  
+  //Memulai menyambungkan blynk dengan android menggunakan local host 
+  Blynk.begin(auth, ssid, pass, IPAddress(192,168,100,4), 8080);
+  dht.begin();
+}
+
+void loop()
+{
+  delay(2000);
+  Blynk.run();
+
+  //Sinkronisasi value antara blynk dengan hardware
+  Blynk.syncVirtual(V4);
+  Blynk.syncVirtual(V5);
+
+  //Ketika buttonnya dalam posisi on
+  if(statState == 1){
+    temperature();
+    lux();
+  }
+}
